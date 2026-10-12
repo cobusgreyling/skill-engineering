@@ -1,0 +1,36 @@
+{
+  "name": "@cobusgreyling/skill",
+  "version": "0.1.0",
+  "description": "Stop collecting skills. Design the load. Get a Skill Ready score.",
+  "type": "module",
+  "bin": {
+    "skill": "./bin/skill.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "skill": "node bin/skill.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cobusgreyling/skill-engineering.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "agent-skills",
+    "claude",
+    "grok",
+    "codex",
+    "cursor"
+  ]
+}

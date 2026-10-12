@@ -25,6 +25,9 @@
     "url": "git+https://github.com/cobusgreyling/skill-engineering.git"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "ai-agents",
     "agent-skills",

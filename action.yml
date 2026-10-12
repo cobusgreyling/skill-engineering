@@ -1,0 +1,56 @@
+name: Skill Ready
+description: Grade SKILL.md files and comment the catalog delta on pull requests.
+branding:
+  icon: activity
+  color: orange
+inputs:
+  path:
+    description: Directory to grade
+    required: false
+    default: "."
+  min:
+    description: Minimum Skill Ready level that passes
+    required: false
+    default: L2
+  baseline:
+    description: Path to a previous doctor --json report. The action comments the catalog delta.
+    required: false
+    default: ""
+  token:
+    description: Token used to comment on the pull request
+    required: false
+    default: ${{ github.token }}
+outputs:
+  level:
+    description: Skill Ready level
+    value: ${{ steps.grade.outputs.level }}
+  catalog-tokens:
+    description: Catalog token estimate
+    value: ${{ steps.grade.outputs.catalog-tokens }}
+  catalog-delta:
+    description: Token change versus the baseline. Empty when no baseline was given.
+    value: ${{ steps.grade.outputs.catalog-delta }}
+runs:
+  using: composite
+  steps:
+    - id: grade
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_MIN: ${{ inputs.min }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -u
+        args=(doctor "$INPUT_PATH" --min "$INPUT_MIN")
+        if [ -n "$INPUT_BASELINE" ]; then
+          args+=(--baseline "$INPUT_BASELINE")
+        fi
+        report="$RUNNER_TEMP/skill-report.json"
+        set +e
+        node "$GITHUB_ACTION_PATH/bin/skill.mjs" "${args[@]}" --json > "$report"
+        code=$?
+        set -e
+        node "$GITHUB_ACTION_PATH/bin/skill.mjs" "${args[@]}" || true
+        node "$GITHUB_ACTION_PATH/bin/action-comment.mjs" "$report" || echo "skill-ready comment skipped"
+        exit "$code"

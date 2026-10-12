@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { discover, userSkillDirs } from "./discover.mjs";
-import { DEFAULT_LIMITS, estimateTokens } from "./limits.mjs";
+import { discover, scanSkillDir, userSkillDirs } from "./discover.mjs";
+import { AIM_DESCRIPTION_CHARS, DEFAULT_LIMITS, catalogScore, estimateTokens } from "./limits.mjs";
 import { asText, isKebabName, parseSkillMarkdown, parseYamlSubset } from "./parse.mjs";
+import { suggestCut } from "./suggest.mjs";
 
-const TRIGGER_RE = /\b(use when|when the user|when you|whenever|if the user)\b/i;
+const TRIGGER_RE =
+  /\b(?:use this skill when|use when|when the user|when you|whenever|if the user|triggers include)\b|\bwhen\s*:/i;
 const STOP = new Set(
   `use when user users asks asked ask want wants wanted with this that your from into
    they them have what does the and for you are how its not can will should whenever
@@ -29,9 +31,30 @@ function jaccard(left, right) {
   return union === 0 ? 0 : inter / union;
 }
 
+function sharedWords(left, right) {
+  const words = [];
+  for (const word of left) if (right.has(word)) words.push(word);
+  words.sort();
+  return words;
+}
+
 function hasTrigger(description, whenToUse) {
   if (whenToUse.length >= 20) return true;
   return TRIGGER_RE.test(description) || TRIGGER_RE.test(whenToUse);
+}
+
+function exclusionSentences(description) {
+  return String(description)
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => /\b(do not|don't|never)\b/i.test(sentence) && /\b(use|for)\b/i.test(sentence))
+    .slice(0, 2);
+}
+
+function withExclusions(message, description) {
+  const lines = exclusionSentences(description);
+  if (!lines.length) return message;
+  return `${message} Exclusion: ${lines[0]}`;
 }
 
 function finding(severity, code, message) {
@@ -74,6 +97,35 @@ function siblingDir(dir, name) {
   return fs.existsSync(target) && fs.statSync(target).isDirectory();
 }
 
+function topPointsAtSplit(body) {
+  const top = String(body || "")
+    .split("\n")
+    .slice(0, 40)
+    .join("\n");
+  return /(?:references|scripts)\//.test(top);
+}
+
+function linkedFiles(skill) {
+  const missing = [];
+  const text = String(skill.body || "");
+  const linkRe = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)|\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  for (const match of text.matchAll(linkRe)) {
+    let target = (match[1] || match[2] || "").trim();
+    if (!target || target.startsWith("#")) continue;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+    target = target.split("#")[0].split("?")[0];
+    if (!target) continue;
+    try {
+      target = decodeURIComponent(target);
+    } catch {
+      continue;
+    }
+    const abs = path.resolve(skill.dir, target);
+    if (!fs.existsSync(abs)) missing.push(target);
+  }
+  return [...new Set(missing)];
+}
+
 function loadSkill(entry) {
   const text = fs.readFileSync(entry.file, "utf8");
   const parsed = parseSkillMarkdown(text);
@@ -84,6 +136,7 @@ function loadSkill(entry) {
     relPath: entry.relPath,
     rootRel: entry.rootRel,
     dirName: entry.dirName,
+    dir: entry.dir,
     declaredName: declared,
     name: declared || entry.dirName,
     description,
@@ -93,6 +146,14 @@ function loadSkill(entry) {
     hasReferences: siblingDir(entry.dir, "references"),
     hasScripts: siblingDir(entry.dir, "scripts"),
   };
+}
+
+function overAim(description, limits) {
+  if (description.length > limits.descriptionBlockChars) return true;
+  return (
+    limits.descriptionWarnChars < limits.descriptionBlockChars &&
+    description.length > limits.descriptionWarnChars
+  );
 }
 
 function scoreOne(skill, limits) {
@@ -141,7 +202,7 @@ function scoreOne(skill, limits) {
       finding(
         "blocking",
         "missing-trigger",
-        `${skill.relPath} never says when to run. Add "Use when …" to the description, or set when-to-use.`,
+        `${skill.relPath} never says when to run. Add "Use when …" or "WHEN:" to the description, or set when-to-use.`,
       ),
     );
   }
@@ -151,15 +212,24 @@ function scoreOne(skill, limits) {
       finding(
         "blocking",
         "essay-description",
-        `${skill.relPath} description is ${description.length} characters. Every description is loaded on every turn. Cut it under ${limits.descriptionBlockChars} and move the essay into the body.`,
+        withExclusions(
+          `${skill.relPath} description is ${description.length} characters (~${estimateTokens(description)} tokens). The spec limit is ${limits.descriptionBlockChars}. Every description is loaded on every turn.`,
+          description,
+        ),
       ),
     );
-  } else if (description.length > limits.descriptionWarnChars) {
+  } else if (
+    limits.descriptionWarnChars < limits.descriptionBlockChars &&
+    description.length > limits.descriptionWarnChars
+  ) {
     findings.push(
       finding(
         "warning",
         "long-description",
-        `${skill.relPath} description is ${description.length} characters. Aim under ${limits.descriptionWarnChars} so the catalog stays cheap.`,
+        withExclusions(
+          `${skill.relPath} description is ${description.length} characters (~${estimateTokens(description)} tokens). The budget aim is ${limits.descriptionWarnChars}.`,
+          description,
+        ),
       ),
     );
   } else if (description && description.length < limits.thinChars && triggered) {
@@ -172,16 +242,37 @@ function scoreOne(skill, limits) {
     );
   }
 
+  const missing = linkedFiles(skill);
+  if (missing.length) {
+    findings.push(
+      finding(
+        "warning",
+        "missing-file",
+        `${skill.relPath} links to ${missing.join(", ")}, and that file is not in the skill folder.`,
+      ),
+    );
+  }
+
   const bodyLines = skill.body ? skill.body.split("\n").length : 0;
   const split = skill.hasReferences || skill.hasScripts;
   if (bodyLines > limits.bodyBlockLines) {
-    findings.push(
-      finding(
-        "blocking",
-        "fat-body",
-        `${skill.relPath} body is ${bodyLines} lines. Split procedures into references/ or scripts/. The body should say when and what, not the whole manual.`,
-      ),
-    );
+    if (topPointsAtSplit(skill.body)) {
+      findings.push(
+        finding(
+          "warning",
+          "fat-body",
+          `${skill.relPath} body is ${bodyLines} lines. The top points at references/ or scripts/, so this manual is paid only when the skill is selected.`,
+        ),
+      );
+    } else {
+      findings.push(
+        finding(
+          "blocking",
+          "fat-body",
+          `${skill.relPath} body is ${bodyLines} lines. Point the top of the file at references/ or scripts/, or move the procedure there.`,
+        ),
+      );
+    }
   } else if (bodyLines > limits.bodyWarnLines && !split) {
     findings.push(
       finding(
@@ -192,12 +283,14 @@ function scoreOne(skill, limits) {
     );
   }
 
+  const aim = Math.min(AIM_DESCRIPTION_CHARS, limits.descriptionWarnChars);
   return {
     name: skill.name,
     relPath: skill.relPath,
     rootRel: skill.rootRel,
     descriptionTokens: estimateTokens(`${description}\n${skill.whenToUse}`),
     bodyLines,
+    suggestion: overAim(description, limits) ? suggestCut(description, skill.whenToUse, aim) : "",
     findings,
     level: skillLevel(findings),
   };
@@ -238,11 +331,12 @@ export function scoreLoaded(skills, limits = DEFAULT_LIMITS) {
       if (left.words.size < 4 || right.words.size < 4) continue;
       const score = jaccard(left.words, right.words);
       if (score < limits.overlap) continue;
+      const words = sharedWords(left.words, right.words).slice(0, 8);
       findings.push(
         finding(
           "warning",
           "description-overlap",
-          `${left.relPath} and ${right.relPath} describe the same job (${Math.round(score * 100)}% word overlap). Merge them or make the triggers mutually exclusive.`,
+          `${left.relPath} and ${right.relPath} describe the same job (${Math.round(score * 100)}% word overlap: ${words.join(", ")}). Merge them or make the triggers mutually exclusive.`,
         ),
       );
     }
@@ -273,7 +367,7 @@ export function scoreLoaded(skills, limits = DEFAULT_LIMITS) {
   if (scored.length === 0) level = "L0";
   else if (blocking > 0) level = "L1";
   else if (warnings > 0) level = "L2";
-  const score = scored.length === 0 ? 0 : Math.max(0, 100 - blocking * 15 - warnings * 5);
+  const score = scored.length === 0 ? 0 : catalogScore(catalogTokens, limits);
 
   return {
     level,
@@ -281,6 +375,7 @@ export function scoreLoaded(skills, limits = DEFAULT_LIMITS) {
     skillCount: scored.length,
     catalogTokens,
     catalogBudget: limits.catalogBlockTokens,
+    catalogWarn: limits.catalogWarnTokens,
     skills: scored,
     findings,
     blocking,
@@ -288,29 +383,73 @@ export function scoreLoaded(skills, limits = DEFAULT_LIMITS) {
   };
 }
 
+function realKey(file) {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return file;
+  }
+}
+
 export function assess(rootDir, options = {}) {
   const root = path.resolve(rootDir);
   const budget = readBudget(root);
   const found = discover(root);
-  const loaded = found.skills.map(loadSkill);
+  const loaded = [];
+  const seen = new Set();
   const roots = [...found.roots];
 
-  if (options.user) {
-    for (const dir of userSkillDirs()) {
-      const extra = discover(dir);
-      for (const entry of extra.skills) {
-        const skill = loadSkill(entry);
+  function add(entries, absolute) {
+    for (const entry of entries) {
+      const key = realKey(entry.file);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const skill = loadSkill(entry);
+      if (absolute) {
         skill.relPath = entry.file;
-        skill.rootRel = dir;
-        loaded.push(skill);
+        skill.rootRel = entry.rootRel;
       }
-      if (extra.skills.length) roots.push(dir);
+      loaded.push(skill);
     }
+  }
+
+  add(found.skills, false);
+
+  const extraDirs = [
+    ...(options.user ? userSkillDirs() : []),
+    ...(options.userDirs || []),
+    ...(options.roots || []),
+  ];
+  for (const dir of extraDirs) {
+    const abs = path.resolve(dir);
+    const extra = scanSkillDir(abs);
+    add(extra, true);
+    if (extra.length) roots.push(abs);
   }
 
   const report = scoreLoaded(loaded, budget.limits);
   report.roots = roots;
   report.budgetFile = budget.file;
   report.root = root;
+  return report;
+}
+
+export function applyBaseline(report, baseline) {
+  const tokens = Number(baseline && baseline.catalogTokens);
+  if (!Number.isFinite(tokens)) {
+    const error = new Error("Baseline JSON needs a catalogTokens number.");
+    error.code = "bad-baseline";
+    throw error;
+  }
+  report.baselineTokens = tokens;
+  report.catalogDelta = report.catalogTokens - tokens;
+  report.addedSkills = [];
+  report.removedSkills = [];
+  if (Array.isArray(baseline.skills)) {
+    const before = new Set(baseline.skills.map((skill) => skill.name).filter(Boolean));
+    const after = new Set(report.skills.map((skill) => skill.name));
+    report.addedSkills = [...after].filter((name) => !before.has(name)).sort();
+    report.removedSkills = [...before].filter((name) => !after.has(name)).sort();
+  }
   return report;
 }

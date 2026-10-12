@@ -1,0 +1,27 @@
+{
+  "level": "L3",
+  "score": 100,
+  "skillCount": 1,
+  "catalogTokens": 36,
+  "catalogBudget": 4000,
+  "catalogWarn": 2000,
+  "skills": [
+    {
+      "name": "skill-doctor",
+      "relPath": ".grok/skills/skill-doctor/SKILL.md",
+      "rootRel": ".grok/skills",
+      "descriptionTokens": 36,
+      "bodyLines": 47,
+      "suggestion": "",
+      "findings": [],
+      "level": "L3"
+    }
+  ],
+  "findings": [],
+  "blocking": 0,
+  "warnings": 0,
+  "roots": [
+    ".grok/skills"
+  ],
+  "budgetFile": null
+}

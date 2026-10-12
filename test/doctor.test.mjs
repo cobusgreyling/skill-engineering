@@ -189,6 +189,177 @@ test("doctor exits 1 on L1 and 0 on L3", () => {
   assert.equal(good, 0);
 });
 
+test("a keyword trigger is a trigger, and 600 characters is inside the spec", () => {
+  const dir = tmp();
+  write(
+    path.join(dir, ".grok/skills/cluster/SKILL.md"),
+    `---
+name: cluster
+description: "Plan a cluster. WHEN: create a cluster, secure a cluster."
+---
+
+# Cluster
+`,
+  );
+  const keyword = assess(dir);
+  assert.equal(keyword.level, "L3");
+
+  const prose = `${"Routing detail. ".repeat(40)}Use when the user asks to route.`;
+  write(
+    path.join(dir, ".grok/skills/router/SKILL.md"),
+    `---
+name: router
+description: "${prose}"
+---
+
+# Router
+`,
+  );
+  const underSpec = assess(dir);
+  assert.ok(prose.length > 500 && prose.length < 1024);
+  assert.ok(!underSpec.findings.some((item) => item.code === "essay-description"));
+  assert.ok(!underSpec.findings.some((item) => item.relPath.endsWith("router/SKILL.md") && item.code === "long-description"));
+
+  write(path.join(dir, ".grok/skills/skill-budget.yaml"), "description_chars: 280\ndescription_chars_max: 1024\n");
+  const aimed = assess(dir);
+  const router = aimed.skills.find((skill) => skill.name === "router");
+  assert.equal(aimed.level, "L2");
+  assert.ok(router.findings.some((item) => item.code === "long-description"));
+  assert.ok(router.suggestion);
+  assert.ok(router.suggestion.length <= 280);
+});
+
+test("a body that points at references is a warning past 500 lines", () => {
+  const dir = tmp();
+  const body = `# Steps\n\nRead [the rest](references/rest.md) first.\n\n${"Do the next reference step.\n".repeat(520)}`;
+  write(
+    path.join(dir, ".grok/skills/manual/SKILL.md"),
+    `---
+name: manual
+description: Follow the release manual. Use when the user asks to run a release.
+---
+
+${body}`,
+  );
+  write(path.join(dir, ".grok/skills/manual/references/rest.md"), "# Rest\n");
+  const pointed = assess(dir);
+  const fat = pointed.findings.find((item) => item.code === "fat-body");
+  assert.equal(fat.severity, "warning");
+  assert.equal(pointed.level, "L2");
+});
+
+test("a markdown link to a missing file is a warning", () => {
+  const dir = tmp();
+  write(
+    path.join(dir, ".grok/skills/handbook/SKILL.md"),
+    `---
+name: handbook
+description: Run the release handbook. Use when the user asks to follow the handbook.
+---
+
+Read [the checklist](references/checklist.md).
+`,
+  );
+  const report = assess(dir);
+  assert.equal(report.level, "L2");
+  assert.ok(report.findings.some((item) => item.code === "missing-file"));
+});
+
+test("a skill directory grades without a project root", () => {
+  const dir = tmp();
+  write(
+    path.join(dir, "notes/SKILL.md"),
+    `---
+name: notes
+description: Take meeting notes from a transcript. Use when the user asks for notes after a call.
+---
+
+# Notes
+`,
+  );
+  const report = assess(dir);
+  assert.equal(report.level, "L3");
+  assert.equal(report.skillCount, 1);
+
+  const hidden = tmp();
+  write(
+    path.join(hidden, "nested/deep/SKILL.md"),
+    `---
+name: deep
+description: Take meeting notes from a transcript. Use when the user asks for notes after a call.
+---
+
+# Deep
+`,
+  );
+  assert.equal(assess(hidden).level, "L0");
+});
+
+test("root and baseline report the catalog delta", () => {
+  const dir = tmp();
+  write(
+    path.join(dir, "notes/SKILL.md"),
+    `---
+name: notes
+description: Take meeting notes from a transcript. Use when the user asks for notes after a call.
+---
+
+# Notes
+`,
+  );
+  const baseline = path.join(dir, "baseline.json");
+  write(baseline, JSON.stringify({ catalogTokens: 10, skills: [{ name: "old-notes" }] }));
+  const empty = tmp();
+  const logs = [];
+  const code = main(
+    ["node", "skill", "doctor", empty, "--root", dir, "--baseline", baseline, "--min", "L3"],
+    { stdout: (line) => logs.push(line), stderr: () => {} },
+  );
+  const text = logs.join("\n");
+  assert.equal(code, 0);
+  assert.match(text, /catalog  10 → \d+   \+\d+ tokens/);
+  assert.match(text, /added  notes/);
+  assert.match(text, /removed  old-notes/);
+});
+
+test("overlap names the shared words", () => {
+  const dir = tmp();
+  write(
+    path.join(dir, ".grok/skills/manual/SKILL.md"),
+    `---
+name: manual
+description: Follow the release manual for production deploys. Use when the user asks to run a release.
+---
+
+# Manual
+`,
+  );
+  write(
+    path.join(dir, ".grok/skills/release-run/SKILL.md"),
+    `---
+name: release-run
+description: Follow the release manual for production deploys. Use when the user asks to run a release checklist.
+---
+
+# Release
+`,
+  );
+  const report = assess(dir);
+  const overlap = report.findings.find((item) => item.code === "description-overlap");
+  assert.match(overlap.message, /release/);
+});
+
+test("the catalog example warns instead of blocking a WHEN trigger", () => {
+  const report = assess(path.join(repo, "examples/catalog"));
+  assert.equal(report.level, "L2");
+  assert.equal(report.score, 100);
+  const codes = report.findings.map((item) => item.code);
+  assert.ok(codes.includes("long-description"));
+  assert.ok(codes.includes("missing-file"));
+  assert.ok(!codes.includes("missing-trigger"));
+  assert.ok(!codes.includes("essay-description"));
+});
+
 test("json includes the level", () => {
   const logs = [];
   const code = main(

@@ -7,7 +7,7 @@ const BUDGET = `# Load budget read by skill doctor.
 catalog_token_budget: 4000
 catalog_token_warn: 2000
 description_chars: 280
-description_chars_max: 500
+description_chars_max: 1024
 body_lines: 200
 body_lines_max: 500
 `;

@@ -1,5 +1,9 @@
 # 技能工程
 
+<p align="center">
+  <img src="assets/header.png" alt="Skill Engineering. Design the load. Stop collecting skills. Get a score. Skill Ready L3, 100/100." width="100%" />
+</p>
+
 > **别再收集技能。设计加载。拿到分数。**
 
 每个技能的 `description` 会在每一轮开始前被加载。正文只在选中该技能时才加载。写得很长的描述不是文档，是每次请求都要付的税。
@@ -39,7 +43,7 @@ Skill Ready  L1  40/100
 3 skills  ·  catalog ~179 tokens of 4000
 ```
 
-完整输出见英文首页。阻塞项是 `missing-trigger`、`essay-description` 和 `duplicate-name`。
+完整输出见英文首页。阻塞项是 `missing-trigger`、`essay-description` 和 `duplicate-name`。不及格时，`doctor` 会印出一条合格描述的形状：一句话写清任务，再用 “Use when the user asks to …” 写清触发条件，并控制在 280 个字符以内。
 
 ## 一个及格的目录
 

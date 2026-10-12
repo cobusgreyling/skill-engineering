@@ -1,5 +1,9 @@
 # Skill Engineering
 
+<p align="center">
+  <img src="assets/header.png" alt="Skill Engineering. Design the load. Stop collecting skills. Get a score. Description is paid every turn. The body is paid when a skill is selected. Skill Ready L3, 100/100, 2 skills, catalog about 63 tokens." width="100%" />
+</p>
+
 > **Stop collecting skills. Design the load. Get a score.**
 
 The description of every skill is loaded on every turn, before the task starts. The body is loaded only when a skill is selected. A long description is not documentation. It is a tax.
@@ -53,6 +57,10 @@ Blocking
     .grok/skills/ship-it/SKILL.md never says when to run. Add "Use when …" to the description, or set when-to-use.
   duplicate-name
     .claude/skills/commit/SKILL.md, .grok/skills/commit/SKILL.md share the name commit. The loader keeps one and drops the other.
+
+Shape
+  <what it does, one sentence>. Use when the user asks to <trigger>.
+  Stay under 280 characters. Put the procedure in the body.
 ```
 
 ## A folder that passes

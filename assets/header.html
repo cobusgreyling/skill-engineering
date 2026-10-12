@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Skill Engineering</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 1280px;
+      height: 640px;
+      background: #141210;
+      overflow: hidden;
+    }
+    .frame {
+      width: 1280px;
+      height: 640px;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      column-gap: 48px;
+      align-items: stretch;
+      padding: 56px 56px 56px 68px;
+    }
+    .copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+    .eyebrow {
+      margin: 0;
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.24em;
+      color: #e08a5d;
+    }
+    h1 {
+      margin: 22px 0 0;
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+      font-weight: 500;
+      font-size: 92px;
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      color: #f3ecdf;
+    }
+    .deck {
+      margin: 28px 0 0;
+      max-width: 560px;
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 28px;
+      line-height: 1.3;
+      font-weight: 500;
+      color: #d9d0c4;
+    }
+    .costs {
+      display: flex;
+      gap: 36px;
+      margin-top: 48px;
+    }
+    .cost .bar {
+      height: 10px;
+      border-radius: 99px;
+      margin-bottom: 12px;
+    }
+    .cost.on .bar { width: 132px; background: #e08a5d; }
+    .cost.off .bar { width: 248px; background: #3c352e; }
+    .cost .label {
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 16px;
+      letter-spacing: 0.02em;
+      color: #a89f93;
+    }
+    .card {
+      background: #f3ecdf;
+      color: #1b1916;
+      border-radius: 28px;
+      padding: 40px 36px 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .kicker {
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      color: #9c4d2b;
+    }
+    .level {
+      margin-top: 12px;
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+      font-size: 148px;
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+    }
+    .score {
+      margin-top: 18px;
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .meta {
+      font-family: "Avenir Next", "Helvetica Neue", Helvetica, sans-serif;
+      font-size: 18px;
+      line-height: 1.45;
+      color: #5e574e;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <div class="copy">
+      <p class="eyebrow">SKILL ENGINEERING</p>
+      <h1>Design<br />the load.</h1>
+      <p class="deck">Stop collecting skills.<br />Get a score.</p>
+      <div class="costs">
+        <div class="cost on">
+          <div class="bar"></div>
+          <div class="label">Description · every turn</div>
+        </div>
+        <div class="cost off">
+          <div class="bar"></div>
+          <div class="label">Body · when selected</div>
+        </div>
+      </div>
+    </div>
+    <aside class="card">
+      <div>
+        <div class="kicker">SKILL READY</div>
+        <div class="level">L3</div>
+        <div class="score">100 / 100</div>
+      </div>
+      <div class="meta">2 skills<br />catalog ~63 tokens</div>
+    </aside>
+  </div>
+</body>
+</html>

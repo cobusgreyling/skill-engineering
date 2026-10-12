@@ -1,3 +1,21 @@
+const SHAPE_CODES = new Set([
+  "missing-description",
+  "missing-trigger",
+  "essay-description",
+  "long-description",
+  "thin-description",
+]);
+
+function shapeLines(report) {
+  if (!report.findings.some((item) => SHAPE_CODES.has(item.code))) return [];
+  return [
+    "",
+    "Shape",
+    "  <what it does, one sentence>. Use when the user asks to <trigger>.",
+    "  Stay under 280 characters. Put the procedure in the body.",
+  ];
+}
+
 function section(title, items) {
   if (!items.length) return [];
   const lines = ["", title];
@@ -40,6 +58,7 @@ export function renderReport(report) {
   const warnings = report.findings.filter((item) => item.severity === "warning");
   lines.push(...section("Blocking", blocking));
   lines.push(...section("Warnings", warnings));
+  lines.push(...shapeLines(report));
   lines.push("");
   lines.push("Next");
   if (report.level === "L1") {

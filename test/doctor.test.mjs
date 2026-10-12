@@ -153,6 +153,26 @@ test("missing frontmatter is blocking", () => {
   assert.ok(report.findings.some((item) => item.code === "missing-frontmatter"));
 });
 
+test("a failing description shows the shape of a passing one", () => {
+  const logs = [];
+  main(["node", "skill", "doctor", path.join(repo, "examples/messy")], {
+    stdout: (line) => logs.push(line),
+    stderr: () => {},
+  });
+  const text = logs.join("\n");
+  assert.match(text, /Shape/);
+  assert.match(text, /Use when the user asks to <trigger>/);
+});
+
+test("a passing tree does not print the shape", () => {
+  const logs = [];
+  main(["node", "skill", "doctor", path.join(repo, "examples/tight")], {
+    stdout: (line) => logs.push(line),
+    stderr: () => {},
+  });
+  assert.doesNotMatch(logs.join("\n"), /^Shape$/m);
+});
+
 test("doctor exits 1 on L1 and 0 on L3", () => {
   const logs = [];
   const bad = main(
